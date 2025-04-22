@@ -13,9 +13,7 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos) {
     for (int i = 0; i < num_arquivos; i++) {
         printf("-> Arquivo[%d] = %s\n", i, arquivos[i]);
     }
-
-
-
+    
     //"nome_arquivo" vai ser aonde você quer adicionar.
     //no caso, como a entrada vai ser ./vinac -ip archive.vc texto1.txt texto2.txt ...
     // o "nome_arquivo" será "archive.vc"

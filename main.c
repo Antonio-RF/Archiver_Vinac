@@ -11,8 +11,9 @@ int main(int argc, char **argv) {
                 i_value = optarg;
                 if (i_value[0] == 'p') {
                     printf("opcao -ip\n");
-                    printf("argv: %s\n", argv[optind]);
-                    option_ip(argv[optind], argc - (optind) + 1, &argv[optind+1]);
+                    // nome_arquivo: archive.vc ; num_arquivos: tira "./vinac" "-ip" e "archive.vc" ;
+                    // arquivos: ponteiro de ponteiros a partir.
+                    option_ip(argv[optind], argc - 3, &argv[optind+1]);
                     break;
                 }
                 if (i_value[0] == 'c') {
