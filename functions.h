@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <time.h>
 
-struct diretorio {
+struct membro {
     char nome[100];
     uid_t uid;
     long int tam_original;
@@ -13,7 +13,12 @@ struct diretorio {
     long int offset;    
 };
 
+struct diretorio {
+    int qntd_de_membros;
+    struct membro *elemento;
+};
+
 void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos);
 
-
+void option_c(const char *nome_arquivo);
 #endif

@@ -1,5 +1,7 @@
+#include <getopt.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
 #include "functions.h"
 
 int main(int argc, char **argv) {
@@ -10,7 +12,7 @@ int main(int argc, char **argv) {
             case 'i':
                 i_value = optarg;
                 if (i_value[0] == 'p') {
-                    printf("opcao -ip\n");
+                    printf("opcao -ip\n")   ;
                     // nome_arquivo: archive.vc ; num_arquivos: tira "./vinac" "-ip" e "archive.vc" ;
                     // arquivos: ponteiro de ponteiros a partir.
                     option_ip(argv[optind], argc - 3, &argv[optind+1]);
@@ -20,6 +22,7 @@ int main(int argc, char **argv) {
                     printf("opcao -ic\n");
                     break;
                 }
+                break;
             case 'm':
                 printf("opcao -m\n");
                 break;
@@ -31,6 +34,11 @@ int main(int argc, char **argv) {
                 break;
             case 'c':
                 printf("opcao -c\n");
+                if (optind < argc) {
+                    option_c(argv[optind]);
+                } else {
+                    fprintf(stderr, "Erro: esperado nome do arquivo após -c\n");
+                }
                 break;
             default:
                 printf("Fim, thanks!\n");
