@@ -90,16 +90,21 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos) {
             //escreve o que acabou de ser lido do buffer para o "archive".
             fwrite(buffer, 1, lidos, archive);
 
-        fclose(f);
-
+        //preenchendo as informações do arquivo no membro do diretório.
         struct membro entrada;
+
+        //calculando o tamanho do arquivo.
+        fseek(f, 0, SEEK_END);
+        entrada.tam_original = ftell(f);
+
         strncpy(entrada.nome, nome, 100);
         entrada.uid = getuid();
-        entrada.tam_original = st.st_size;
-        entrada.tam_disco = st.st_mtime;
+        entrada.tam_disco = st.st_size;
         entrada.data_modif = st.st_mtime;
         entrada.ordem = dir.qntd_de_membros + 1;
         entrada.offset = offset_atual;
+
+        fclose(f);
 
         dir.qntd_de_membros++;
         dir.elemento = realloc(dir.elemento, sizeof(struct membro) * dir.qntd_de_membros);
@@ -165,4 +170,32 @@ void option_c(const char *nome_arquivo) {
 
     free(membros);
     fclose(archive);
+}
+
+void option_m(const char *nome_arquivo, int num_arquivos, char *arquivo_mover, const char *destino) {
+    FILE *archive = fopen(nome_arquivo, "r+b");
+    if (!archive) {
+        perror("Erro ao abrir o arquivo.\n");
+        return;
+    }
+
+    //O formato para mover será o seguinte:
+    // vinac <opção> <archive> membro1 membrox;
+    //caso "membrox" não exista a movimentação deve ir para o início;
+    //caso "membrox" exista a movimentação deve ir para logo depois de membrox
+    //Atenção: a forma como estou implementando está identificando os arquivos e o target pelo nome.
+
+    //se o último argumento(destino) não existir, deve-se mover o arquivo para o início.
+    if (!destino) {
+        const char *nome = arquivo_mover;
+        FILE *f = fopen(nome, "rb");
+        if (!f) {
+            perror("Erro ao abrir membro");
+            return;
+        }
+
+        fseek(f, 0, SEEK_END);
+        long int tamanho_arquivo = ftell(f);
+    }
+
 }

@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
                 break;
             case 'm':
                 printf("opcao -m\n");
+                //option_m(const char *nome_arquivo, int num_arquivos, const char *destino);
                 break;
             case 'x':
                 printf("opcao -x\n");
