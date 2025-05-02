@@ -8,6 +8,9 @@ int main(int argc, char **argv) {
     char prox_opcao;
     char *i_value = NULL;
     while ((prox_opcao = getopt(argc, argv, "i:m:x:r:c")) != -1) {
+        for (int i = 0; i < argc; i++) {
+            printf("argv[%d] = %s\n", i, argv[i]);
+        }
         switch(prox_opcao) {
             case 'i':
                 i_value = optarg;
@@ -25,7 +28,17 @@ int main(int argc, char **argv) {
                 break;
             case 'm':
                 printf("opcao -m\n");
-                //option_m(const char *nome_arquivo, int num_arquivos, const char *destino);
+                if (optind >= argc) {
+                    fprintf(stderr, "Erro: esperado nome do arquivo a mover após o nome do arquivo.\n");
+                    break;
+                }
+                if ((optind + 1) > argc) {
+                    fprintf(stderr, "Erro: argumento insuficiente após -m.\n");
+                    break;
+                }
+                printf("arquivo pretendido: %s\n", optarg);
+                printf("arquivo a mover: %s\n", argv[optind]);
+                option_m(optarg, argv[optind]);
                 break;
             case 'x':
                 printf("opcao -x\n");

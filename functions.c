@@ -172,30 +172,114 @@ void option_c(const char *nome_arquivo) {
     fclose(archive);
 }
 
-void option_m(const char *nome_arquivo, int num_arquivos, char *arquivo_mover, const char *destino) {
+void option_m(const char *nome_arquivo, char *arquivo_mover) {
     FILE *archive = fopen(nome_arquivo, "r+b");
     if (!archive) {
         perror("Erro ao abrir o arquivo.\n");
         return;
     }
 
+    printf("Procurando pelo arquivo: %s\n", arquivo_mover);
+
+    //descobrindo o tamanho do archive.vc:
+    fseek(archive, 0, SEEK_END);
+    long int tam_arquivo = ftell(archive);
+
+    //descobrindo a quantidade de membros em archive.vc:
+    int qntd_arquivos;
+    fseek(archive, -sizeof(int), SEEK_END);
+    fread(&qntd_arquivos, sizeof(int), 1, archive);
+
+    //descobindo aonde começa o diretório:
+    //calculando o tamanho total do diretório.
+    long int tam_dir = sizeof(struct membro) * qntd_arquivos + sizeof(int);
+    //aonde começa o diretório no archive:
+    long int inicio_dir = tam_arquivo - tam_dir;
+    
+    //lendo e guardando os membros do diretório:
+    fseek(archive, inicio_dir, SEEK_SET);
+    struct membro *membros = malloc(sizeof(struct membro) * qntd_arquivos);
+    if (!membros) {
+        fprintf(stderr, "Erro ao alocar memória para membros.\n");
+        fclose(archive);
+        return;
+    }
+
+    fread(membros, sizeof(struct membro), qntd_arquivos, archive);
+
+    // encontrando e salvando o indice do arquivo_mover:
+    int mover_idx = -1;
+    for (int i = 0; i < qntd_arquivos; i++) {
+        //essa função "strcmp" compara duas strings e retorna 0 quando são iguais.
+        if (strcmp(membros[i].nome, arquivo_mover) == 0) {
+            mover_idx = i;
+            break;
+        }
+    }
+    if (mover_idx == -1) {
+        printf("Arquivo a mover não encontrado no diretório.\n");
+        free(membros);
+        fclose(archive);
+        return;
+    }
+
+    //salvando o arquivo_mover em um buffer:
+    char *buffer_mover = malloc(membros[mover_idx].tam_disco);
+    if (!buffer_mover) {
+        fprintf(stderr, "Erro ao alocar memória para buffer mover.\n");
+        fclose(archive);
+        return;
+    }
+    fseek(archive, membros[mover_idx].offset, SEEK_SET);
+    fread(buffer_mover, 1, membros[mover_idx].tam_disco, archive);
+
+//----------------------------------------------------------------------------------------------------------//
     //O formato para mover será o seguinte:
     // vinac <opção> <archive> membro1 membrox;
     //caso "membrox" não exista a movimentação deve ir para o início;
     //caso "membrox" exista a movimentação deve ir para logo depois de membrox
     //Atenção: a forma como estou implementando está identificando os arquivos e o target pelo nome.
 
-    //se o último argumento(destino) não existir, deve-se mover o arquivo para o início.
-    if (!destino) {
-        const char *nome = arquivo_mover;
-        FILE *f = fopen(nome, "rb");
-        if (!f) {
-            perror("Erro ao abrir membro");
+    //movendo os arquivos que estão atrás para frente "membro_mover.tam_disco":
+    for (int i=mover_idx-1 ; i>=0 ; i--) {
+        char *temp = malloc(membros[i].tam_disco);
+        if (!buffer_mover) {
+            fprintf(stderr, "Erro ao alocar memória para temp.\n");
+            fclose(archive);
             return;
         }
+        fseek(archive, membros[i].offset, SEEK_SET);
+        fread(temp, 1, membros[i].tam_disco, archive);
 
-        fseek(f, 0, SEEK_END);
-        long int tamanho_arquivo = ftell(f);
+        membros[i].offset += membros[mover_idx].tam_disco;
+        fseek(archive, membros[i].offset, SEEK_SET);
+        fwrite(temp, 1, membros[i].tam_disco, archive);
+        free(temp);
     }
+
+    //escrevendo o arquivo_mover no início:
+    membros[mover_idx].offset = 0;
+    fseek(archive, 0, SEEK_SET);
+    fwrite(buffer_mover, 1, membros[mover_idx].tam_disco, archive);
+    free(buffer_mover);
+
+    // Atualizando o novo diretório:
+    //aqui eu atualizo o diretório copiado
+    struct membro mover_membro = membros[mover_idx];
+    for (int i = mover_idx; i > 0; i--) {
+        membros[i] = membros[i - 1];
+    }
+    //colocando o membro movido na primeira posição do meu diretório:
+    membros[0] = mover_membro;
+    //apagando o diretório antigo e escrevendo o atualizado:
+    ftruncate(fileno(archive), inicio_dir);
+    fseek(archive, 0, SEEK_END);
+    fwrite(membros, sizeof(struct membro), qntd_arquivos, archive);
+    fwrite(&qntd_arquivos, sizeof(int), 1, archive);
+
+    free(membros);
+    fclose(archive);
+
+    printf("Arquivo %s movido para o início com sucesso.\n", arquivo_mover);
 
 }
