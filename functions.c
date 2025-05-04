@@ -100,6 +100,7 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos) {
         entrada.tam_original = ftell(f);
 
         strncpy(entrada.nome, nome, 100);
+        entrada.nome[99] = '\0';
         entrada.uid = getuid();
         entrada.tam_disco = st.st_size;
         entrada.data_modif = st.st_mtime;
@@ -164,12 +165,13 @@ void option_c(const char *nome_arquivo) {
 
     if (qntd_arquivos > 0) {
         for (int i=0 ; i<qntd_arquivos ; i++) {
-            printf("nome:%s, uid:%d, tamanho_original: %ld, tamanho_em_disco: %ld, data_modificação: %s",
+            printf("nome:%s, uid:%d, tamanho_original: %ld, tamanho_em_disco: %ld, data_modificação: %s, offset: %ld\n",
             membros[i].nome,
             membros[i].uid,
             membros[i].tam_original,
             membros[i].tam_disco,
-            ctime(&membros[i].data_modif));
+            ctime(&membros[i].data_modif),
+            membros[i].offset);
         }
     }
 
@@ -196,6 +198,8 @@ void option_m(const char *nome_arquivo, char *arquivo_mover, char *arquivo_desti
     int qntd_arquivos;
     fseek(archive, -sizeof(int), SEEK_END);
     fread(&qntd_arquivos, sizeof(int), 1, archive);
+    printf("qntd de membros: %d\n", qntd_arquivos);
+    
 
     //descobindo aonde começa o diretório:
     //calculando o tamanho total do diretório.
@@ -392,4 +396,102 @@ void option_m(const char *nome_arquivo, char *arquivo_mover, char *arquivo_desti
 
     }
 
+}
+//---------------------------------------------------------------------------------------------------------//
+//FUNÇÃO REMOVER:
+void option_r(const char *nome_arquivo, int num_arquivos, char *arquivo_remover) {
+    FILE *archive = fopen(nome_arquivo, "r+b");
+    if (!archive) {
+        perror("Erro ao abrir o arquivo.\n");
+        return;
+    }
+
+    //descobrindo o tamanho do archive.vc:
+    fseek(archive, 0, SEEK_END);
+    long int tam_arquivo = ftell(archive);
+
+    //descobrindo a quantidade de membros em archive.vc:
+    int qntd_arquivos;
+    fseek(archive, -sizeof(int), SEEK_END);
+    fread(&qntd_arquivos, sizeof(int), 1, archive);
+    printf("qntd de membros: %d\n", qntd_arquivos);
+    
+
+    //descobindo aonde começa o diretório:
+    //calculando o tamanho total do diretório.
+    long int tam_dir = sizeof(struct membro) * qntd_arquivos + sizeof(int);
+    //aonde começa o diretório no archive:
+    long int inicio_dir = tam_arquivo - tam_dir;
+    
+    //lendo e guardando os membros do diretório:
+    fseek(archive, inicio_dir, SEEK_SET);
+    struct membro *membros = malloc(sizeof(struct membro) * qntd_arquivos);
+    if (!membros) {
+        fprintf(stderr, "Erro ao alocar memória para membros.\n");
+        fclose(archive);
+        return;
+    }
+
+    fread(membros, sizeof(struct membro), qntd_arquivos, archive);
+
+    // encontrando e salvando o indice do arquivo_destino:
+    int guarda_ind = -1;
+    for (int i = 0; i < qntd_arquivos; i++) {
+        //essa função "strcmp" compara duas strings e retorna 0 quando são iguais.
+        if (strcmp(membros[i].nome, arquivo_remover) == 0) {
+            guarda_ind = i;
+            break;
+        }
+    }
+
+    //se não existir o arquivo, printa que não existe e vai para o próximo.
+    if (guarda_ind == -1) {
+        printf("Arquivo %s não está no archive.vc\n", arquivo_remover);
+        free(membros);
+        fclose(archive);
+        return;
+    }
+
+    //caso exista, sobreescrever ele com os que estão à frente e truncar ao final.
+    for (int j=guarda_ind+1 ; j<qntd_arquivos ; j++) {
+        char *temp = malloc(membros[j].tam_disco);
+        if (!temp) {
+            fprintf(stderr, "Erro ao alocar memória para temp.\n");
+            free(membros);
+            fclose(archive);
+            return;
+        }
+
+        fseek(archive, membros[j].offset, SEEK_SET);
+        fread(temp, 1, membros[j].tam_disco, archive);
+
+        membros[j].offset -= membros[guarda_ind].tam_disco;
+        fseek(archive, membros[j].offset, SEEK_SET);
+        fwrite(temp, 1, membros[j].tam_disco, archive);
+        free(temp);
+    }
+
+    //tirando o membro do diretório
+    for (int j=guarda_ind; j<qntd_arquivos-1; j++) {
+        membros[j] = membros[j+1];
+    }
+
+    qntd_arquivos--;
+
+    // recalcular novo final de dados
+    long int nova_pos_fim = (qntd_arquivos == 0) ? 0 :
+        membros[qntd_arquivos - 1].offset + membros[qntd_arquivos - 1].tam_disco;
+
+    // truncar o arquivo
+    ftruncate(fileno(archive), nova_pos_fim);
+
+    // reescrever diretório atualizado
+    fseek(archive, nova_pos_fim, SEEK_SET);
+    fwrite(membros, sizeof(struct membro), qntd_arquivos, archive);
+    fwrite(&qntd_arquivos, sizeof(int), 1, archive);
+
+    printf("Arquivo %s removido com sucesso.\n", arquivo_remover);
+
+    free(membros);
+    fclose(archive);
 }
