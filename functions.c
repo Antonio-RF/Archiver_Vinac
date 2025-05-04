@@ -7,6 +7,8 @@
 #include <time.h>
 #include "functions.h"
 
+//---------------------------------------------------------------------------------------------------------//
+//FUNÇÃO INSERIR NÃO COMPRIMIDO:
 void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos) {
     printf("Arquivo archive: %s\n", nome_arquivo);
     printf("Quantidade de arquivos a adicionar: %d\n", num_arquivos);
@@ -120,6 +122,8 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos) {
     printf("Arquivos inseridos com sucesso em %s\n", nome_arquivo);
 }
 
+//---------------------------------------------------------------------------------------------------------//
+//FUNÇÃO LISTAR:
 void option_c(const char *nome_arquivo) {
     FILE *archive = fopen(nome_arquivo, "r+b");
     if (!archive) {
@@ -146,10 +150,11 @@ void option_c(const char *nome_arquivo) {
     long int inicio_dir = tam_arquivo - tam_dir;
     fseek(archive, inicio_dir, SEEK_SET);
 
-    // aloca memória para ler o os membros do diretório:
+    // aloca memória para ler os membros do diretório:
     struct membro *membros = malloc(sizeof(struct membro) * qntd_arquivos);
     if (!membros) {
         perror("Erro ao alocar memória para membros\n");
+        printf("%d", qntd_arquivos);
         fclose(archive);
         return;
     }
@@ -172,7 +177,9 @@ void option_c(const char *nome_arquivo) {
     fclose(archive);
 }
 
-void option_m(const char *nome_arquivo, char *arquivo_mover) {
+//---------------------------------------------------------------------------------------------------------//
+//FUNÇÃO MOVER:
+void option_m(const char *nome_arquivo, char *arquivo_mover, char *arquivo_destino) {
     FILE *archive = fopen(nome_arquivo, "r+b");
     if (!archive) {
         perror("Erro ao abrir o arquivo.\n");
@@ -233,53 +240,156 @@ void option_m(const char *nome_arquivo, char *arquivo_mover) {
     fseek(archive, membros[mover_idx].offset, SEEK_SET);
     fread(buffer_mover, 1, membros[mover_idx].tam_disco, archive);
 
-//----------------------------------------------------------------------------------------------------------//
+
     //O formato para mover será o seguinte:
     // vinac <opção> <archive> membro1 membrox;
     //caso "membrox" não exista a movimentação deve ir para o início;
     //caso "membrox" exista a movimentação deve ir para logo depois de membrox
     //Atenção: a forma como estou implementando está identificando os arquivos e o target pelo nome.
 
-    //movendo os arquivos que estão atrás para frente "membro_mover.tam_disco":
-    for (int i=mover_idx-1 ; i>=0 ; i--) {
-        char *temp = malloc(membros[i].tam_disco);
-        if (!buffer_mover) {
-            fprintf(stderr, "Erro ao alocar memória para temp.\n");
-            fclose(archive);
-            return;
+    // encontrando e salvando o indice do arquivo_destino:
+    int destino_idx = -1;
+    for (int i = 0; i < qntd_arquivos; i++) {
+        //essa função "strcmp" compara duas strings e retorna 0 quando são iguais.
+        if (strcmp(membros[i].nome, arquivo_destino) == 0) {
+            destino_idx = i;
+            break;
         }
-        fseek(archive, membros[i].offset, SEEK_SET);
-        fread(temp, 1, membros[i].tam_disco, archive);
-
-        membros[i].offset += membros[mover_idx].tam_disco;
-        fseek(archive, membros[i].offset, SEEK_SET);
-        fwrite(temp, 1, membros[i].tam_disco, archive);
-        free(temp);
     }
 
-    //escrevendo o arquivo_mover no início:
-    membros[mover_idx].offset = 0;
-    fseek(archive, 0, SEEK_SET);
-    fwrite(buffer_mover, 1, membros[mover_idx].tam_disco, archive);
-    free(buffer_mover);
+    //caso não exista arquivo destino, mover para o início:
+    if (destino_idx == -1) {
+        //movendo os arquivos que estão atrás para frente "membro_mover.tam_disco":
+        for (int i=mover_idx-1 ; i>=0 ; i--) {
+            char *temp = malloc(membros[i].tam_disco);
+            if (!buffer_mover) {
+                fprintf(stderr, "Erro ao alocar memória para temp.\n");
+                fclose(archive);
+                return;
+            }
+            fseek(archive, membros[i].offset, SEEK_SET);
+            fread(temp, 1, membros[i].tam_disco, archive);
 
-    // Atualizando o novo diretório:
-    //aqui eu atualizo o diretório copiado
-    struct membro mover_membro = membros[mover_idx];
-    for (int i = mover_idx; i > 0; i--) {
-        membros[i] = membros[i - 1];
+            membros[i].offset += membros[mover_idx].tam_disco;
+            fseek(archive, membros[i].offset, SEEK_SET);
+            fwrite(temp, 1, membros[i].tam_disco, archive);
+            free(temp);
+        }
+
+        //escrevendo o arquivo_mover no início:
+        membros[mover_idx].offset = 0;
+        fseek(archive, 0, SEEK_SET);
+        fwrite(buffer_mover, 1, membros[mover_idx].tam_disco, archive);
+        free(buffer_mover);
+
+        membros[mover_idx].data_modif = time(NULL);
+
+        // Atualizando o novo diretório:
+        //aqui eu atualizo o diretório copiado
+        struct membro mover_membro = membros[mover_idx];
+        for (int i = mover_idx; i > 0; i--) {
+            membros[i] = membros[i - 1];
+        }
+        //colocando o membro movido na primeira posição do meu diretório:
+        membros[0] = mover_membro;
+        //apagando o diretório antigo e escrevendo o atualizado:
+        ftruncate(fileno(archive), inicio_dir);
+        fseek(archive, 0, SEEK_END);
+        fwrite(membros, sizeof(struct membro), qntd_arquivos, archive);
+        fwrite(&qntd_arquivos, sizeof(int), 1, archive);
+
+        free(membros);
+        fclose(archive);
+
+        printf("Arquivo %s movido para o início com sucesso.\n", arquivo_mover);
     }
-    //colocando o membro movido na primeira posição do meu diretório:
-    membros[0] = mover_membro;
-    //apagando o diretório antigo e escrevendo o atualizado:
-    ftruncate(fileno(archive), inicio_dir);
-    fseek(archive, 0, SEEK_END);
-    fwrite(membros, sizeof(struct membro), qntd_arquivos, archive);
-    fwrite(&qntd_arquivos, sizeof(int), 1, archive);
+    //caso exista um arquivo destino em archive.vc:
+    else {
+        //primeiro caso: quero mover para um arquivo que está antes.
+        if (mover_idx > destino_idx) {
+            for (int i=mover_idx-1 ; i>destino_idx ; i--) {
+                char *temp = malloc(membros[i].tam_disco);
+                if (!temp) {
+                    fprintf(stderr, "Erro ao alocar memória para temp.\n");
+                    free(buffer_mover);
+                    free(membros);
+                    fclose(archive);
+                    return;
+                }
 
-    free(membros);
-    fclose(archive);
+                fseek(archive, membros[i].offset, SEEK_SET);
+                fread(temp, 1, membros[i].tam_disco, archive);
 
-    printf("Arquivo %s movido para o início com sucesso.\n", arquivo_mover);
+                membros[i].offset += membros[mover_idx].tam_disco;
+                fseek(archive, membros[i].offset, SEEK_SET);
+                fwrite(temp, 1, membros[i].tam_disco, archive);
+                free(temp);
+            }
+            //escrevendo o arquivo_mover logo após o arquivo_destino:
+            membros[mover_idx].offset = membros[destino_idx].offset + membros[destino_idx].tam_disco;
+            fseek(archive, membros[destino_idx].offset, SEEK_SET);
+            fwrite(buffer_mover, 1, membros[mover_idx].tam_disco, archive);
+            free(buffer_mover);
+
+            membros[mover_idx].data_modif = time(NULL);
+
+            // Atualizando o novo diretório:
+            //aqui eu atualizo o diretório copiado
+            struct membro mover_membro = membros[mover_idx];
+            for (int i = mover_idx; i > destino_idx+1; i--) {
+                membros[i] = membros[i - 1];
+            }
+            //colocando o membro movido logo após o membrox:
+            membros[destino_idx+1] = mover_membro;
+        }
+        //segundo caso: quero mover para um arquivo que está depois:
+        else {
+            for (int i=mover_idx+1 ; i<=destino_idx ; i++) {
+                char *temp = malloc(membros[i].tam_disco);
+                if (!temp) {
+                    fprintf(stderr, "Erro ao alocar memória para temp.\n");
+                    free(buffer_mover);
+                    free(membros);
+                    fclose(archive);
+                    return;
+                }
+
+                fseek(archive, membros[i].offset, SEEK_SET);
+                fread(temp, 1, membros[i].tam_disco, archive);
+
+                membros[i].offset -= membros[mover_idx].tam_disco;
+                fseek(archive, membros[i].offset, SEEK_SET);
+                fwrite(temp, 1, membros[i].tam_disco, archive);
+                free(temp);
+            }
+            //escrevendo o arquivo_mover logo após o arquivo_destino:
+            membros[mover_idx].offset = membros[destino_idx].offset+membros[destino_idx].tam_disco;
+            fseek(archive, membros[mover_idx].offset, SEEK_SET);
+            fwrite(buffer_mover, 1, membros[mover_idx].tam_disco, archive);
+            free(buffer_mover);
+
+            membros[mover_idx].data_modif = time(NULL);
+
+            // Atualizando o novo diretório:
+            //aqui eu atualizo o diretório copiado
+            struct membro mover_membro = membros[mover_idx];
+            for (int i = mover_idx; i< destino_idx; i++) {
+                membros[i] = membros[i + 1];
+            }
+            //colocando o membro movido logo após o membrox:
+            membros[destino_idx] = mover_membro;
+        }
+        //apagando o diretório antigo e escrevendo o atualizado:
+        ftruncate(fileno(archive), inicio_dir);
+        fseek(archive, 0, SEEK_END);
+        fwrite(membros, sizeof(struct membro), qntd_arquivos, archive);
+        fwrite(&qntd_arquivos, sizeof(int), 1, archive);
+
+        free(membros);
+        fclose(archive);
+
+        printf("Arquivo %s movido para depois do %s com sucesso.\n", arquivo_mover, arquivo_destino);
+
+    }
 
 }

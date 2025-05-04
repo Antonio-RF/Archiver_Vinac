@@ -22,6 +22,6 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos);
 
 void option_c(const char *nome_arquivo);
 
-void option_m(const char *nome_arquivo, char *arquivo_mover);
+void option_m(const char *nome_arquivo, char *arquivo_mover, char *arquivo_destino);
 
 #endif
