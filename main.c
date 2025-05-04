@@ -37,7 +37,8 @@ int main(int argc, char **argv) {
                 break;
             case 'r':
                 printf("opcao -r\n");
-                option_r(optarg, argc - 3, argv[optind]);
+                for (int i= optind ; i < argc ; i++)
+                    option_r(optarg, argc - 3, argv[i]);
                 break;
             case 'c':
                 printf("opcao -c\n");
