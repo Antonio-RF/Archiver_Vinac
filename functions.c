@@ -6,10 +6,11 @@
 #include <pwd.h>
 #include <time.h>
 #include "functions.h"
+#include "lz.h"
 
 //---------------------------------------------------------------------------------------------------------//
 //FUNÇÃO INSERIR NÃO COMPRIMIDO:
-void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos) {
+void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int controle, struct informacoes_comprimido *x) {
     printf("Arquivo archive: %s\n", nome_arquivo);
     printf("Quantidade de arquivos a adicionar: %d\n", num_arquivos);
     for (int i = 0; i < num_arquivos; i++) {
@@ -97,12 +98,19 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos) {
 
         //calculando o tamanho do arquivo.
         fseek(f, 0, SEEK_END);
-        entrada.tam_original = ftell(f);
+        // Só preenche os tamanhos se controle for 0 (não comprimido)
+        if (controle == 0) {
+            entrada.tam_original = ftell(f);   // Tamanho original do arquivo
+            entrada.tam_disco = st.st_size;    // Tamanho no disco do arquivo
+        }
+        else {
+            entrada.tam_original = x->tam_original;
+            entrada.tam_disco = x->tam_disco;  
+        }
 
         strncpy(entrada.nome, nome, 100);
         entrada.nome[99] = '\0';
         entrada.uid = getuid();
-        entrada.tam_disco = st.st_size;
         entrada.data_modif = st.st_mtime;
         entrada.ordem = dir.qntd_de_membros + 1;
         entrada.offset = offset_atual;
@@ -123,6 +131,105 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos) {
     printf("Arquivos inseridos com sucesso em %s\n", nome_arquivo);
 }
 
+//---------------------------------------------------------------------------------------------------------//
+//FUNÇÃO INSERIR COMPRIMIDO:
+void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
+    //criando um vetor para comprimir os arquivos:
+    char **arquivos_a_comprimir = malloc(num_arquivos * sizeof(char *));
+    struct informacoes_comprimido *info = malloc(num_arquivos *sizeof(struct informacoes_comprimido));
+    int *eh_temporario = malloc(num_arquivos * sizeof(int));
+    if (!arquivos_a_comprimir || !info || !eh_temporario) {
+        perror("Erro ao alocar memória");
+        free(arquivos_a_comprimir);
+        free(info);
+        free(eh_temporario);
+        return;
+    }
+
+    for (int i = 0; i < num_arquivos; i++) {
+        char *nome = arquivos[i];
+        FILE *f = fopen(nome, "rb");
+        if (!f) {
+            perror("Erro ao abrir membro");
+            arquivos_a_comprimir[i] = NULL;
+            continue;
+        }
+
+        // Descobrindo tamanho do arquivo
+        fseek(f, 0, SEEK_END);
+        long tam = ftell(f);
+        rewind(f);
+
+        // Aloca memória e lê todo o conteúdo do arquivo
+        char *conteudo = malloc(tam);
+        if (!conteudo) {
+            perror("Erro ao alocar memória para leitura");
+            fclose(f);
+            arquivos_a_comprimir[i] = NULL;
+            continue;
+        }
+
+        //coloca em conteúdocomprimido e conteúdodescomprimido o que tem em f.
+        fread(conteudo, 1, tam, f);
+        fclose(f);
+
+        // Comprime o conteúdo
+        unsigned char *comprimido = malloc(tam);
+        // Realiza compressão
+        int tam_comprimido = LZ_Compress((unsigned char *)conteudo, comprimido, (unsigned int)tam);
+        free(conteudo);
+        
+        if (tam_comprimido <= 0 || !comprimido) {
+            printf("Erro ao comprimir %s\n", arquivos[i]);
+            free(comprimido);
+            arquivos_a_comprimir[i] = NULL;
+            eh_temporario[i] = 0;
+            continue;
+        }
+
+        //colocando as informações do tamanho original e tamanho em disco.
+        struct stat st;
+        stat(nome, &st);
+        info[i].tam_original = st.st_size;
+        info[i].tam_disco = tam_comprimido;
+
+        //aqui eu confiro se o arquivo comprimido é maior que o original ou não.
+        //se for maior, eu insiro o arquivo original, senão eu insiro o arquivo comprimido.
+        if (tam_comprimido < tam) {
+            char *saida = malloc(strlen(nome) + 5); //+ ".lz" e "\0"
+            sprintf(saida, "%s.lz", nome);
+
+            //salvando o conteudo comprimido no arquivo out1:
+            FILE *out1 = fopen(saida, "wb");
+            fwrite(comprimido, 1, tam_comprimido, out1);
+            fclose(out1);
+            free(comprimido);
+
+            arquivos_a_comprimir[i] = saida;
+            eh_temporario[i] = 1;
+        }
+        else {
+            info[i].tam_disco = info[i].tam_original;
+            free(comprimido);
+            arquivos_a_comprimir[i] = strdup(nome);
+            eh_temporario[i] = 0;
+        }
+    }
+
+    // Remove os arquivos temporários
+    for (int i = 0; i < num_arquivos; i++) {
+        if (arquivos_a_comprimir[i]) {
+            option_ip(nome_arquivo, 1, &arquivos_a_comprimir[i], 1, &info[i]);
+            //se não for, eu estaria removendo o arquivo original.
+            if (eh_temporario[i])
+                remove(arquivos_a_comprimir[i]);
+            free(arquivos_a_comprimir[i]);
+        }
+    }
+
+    free(arquivos_a_comprimir);
+    free(info);
+}
 //---------------------------------------------------------------------------------------------------------//
 //FUNÇÃO LISTAR:
 void option_c(const char *nome_arquivo) {
@@ -495,3 +602,6 @@ void option_r(const char *nome_arquivo, int num_arquivos, char *arquivo_remover)
     free(membros);
     fclose(archive);
 }
+
+
+

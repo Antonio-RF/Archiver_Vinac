@@ -4,6 +4,7 @@
 #include <time.h>
 #include "functions.h"
 
+
 int main(int argc, char **argv) {
     char prox_opcao;
     char *i_value = NULL;
@@ -18,11 +19,12 @@ int main(int argc, char **argv) {
                     printf("opcao -ip\n")   ;
                     // nome_arquivo: archive.vc ; num_arquivos: tira "./vinac" "-ip" e "archive.vc" ;
                     // arquivos: ponteiro de ponteiros a partir.
-                    option_ip(argv[optind], argc - 3, &argv[optind+1]);
+                    option_ip(argv[optind], argc - 3, &argv[optind+1], 0, NULL);
                     break;
                 }
                 if (i_value[0] == 'c') {
                     printf("opcao -ic\n");
+                    option_ic(argv[optind], argc - 3, &argv[optind+1]);
                     break;
                 }
                 break;
