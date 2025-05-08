@@ -92,30 +92,62 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
             }
         }
 
-        //se existir, vou sobreescrever o arquivo com os que estão à frente dele:
+        //se existir, vou pegar o tamanho do arquivo que já está no diretório e o tamanho desse que vou inserir.
+        //tirar essa diferença e, se for diferente de 0, colocar todos que estão à frente "diferença" para frente ou para trás.
         if (guarda_i != -1) {
-            for (int j=guarda_i+1 ; j<dir.qntd_de_membros ; j++) {
-                char *temp = malloc(dir.elemento[j].tam_disco);
+            fseek(f, 0, SEEK_END);
+            int tam_arq_inserir = ftell(f);
+            int tam_arq_antigo = dir.elemento[guarda_i].tam_disco;
+            int diferenca_tam = tam_arq_inserir - tam_arq_antigo;
 
-                fseek(archive, dir.elemento[j].offset, SEEK_SET);
-                fread(temp, 1, dir.elemento[j].tam_disco, archive);
+            if (diferenca_tam != 0) {
+                 // Calculando o offset do fim do ultimo arquivo antigo.
+                long int max_offset = 0;
+                for (int j = 0; j < dir.qntd_de_membros; j++) {
+                    long int fim = dir.elemento[j].offset + dir.elemento[j].tam_disco;
+                    if (fim > max_offset)
+                        max_offset = fim;
+                }
 
-                dir.elemento[j].offset -= dir.elemento[guarda_i].tam_disco;
-                fseek(archive, dir.elemento[j].offset, SEEK_SET);
-                fwrite(temp, 1, dir.elemento[j].tam_disco, archive);
-                free(temp);
+                //se for maior, eu terei que pegar o tamanho extra 
+                size_t tam_extra;
+                if (diferenca_tam > 0)
+                    tam_extra = diferenca_tam;
+                else 
+                    tam_extra = 0;
+
+                char *dados_restantes = malloc(max_offset - dir.elemento[guarda_i].offset + tam_extra);
+
+                fseek(archive, dir.elemento[guarda_i].offset + tam_arq_antigo, SEEK_SET);
+                fread(dados_restantes, 1, max_offset - (dir.elemento[guarda_i].offset + tam_arq_antigo), archive);
+
+                for (int j = guarda_i + 1; j < dir.qntd_de_membros; j++) {
+                    dir.elemento[j].offset += diferenca_tam;
+                }
+
+                fseek(f, 0, SEEK_SET);
+                fseek(archive, dir.elemento[guarda_i].offset, SEEK_SET);
+                char buffer[1024];
+                size_t lidos;
+                while ((lidos = fread(buffer, 1, sizeof(buffer), f)) > 0)
+                    fwrite(buffer, 1, lidos, archive);
+
+                fwrite(dados_restantes, 1, max_offset - (dir.elemento[guarda_i].offset + tam_arq_antigo), archive);
+                free(dados_restantes);
+
+                dir.elemento[guarda_i].tam_disco = tam_arq_inserir;
+                dir.elemento[guarda_i].tam_original = tam_arq_inserir;
+
+                fclose(f);
+                continue;
             }
-            //tirando ele do meu diretório:
-            for (int j=guarda_i; j<dir.qntd_de_membros-1; j++) {
-                dir.elemento[j] = dir.elemento[j+1];
+            //arquivo igual, só continua.
+            if (diferenca_tam == 0) {
+                continue;
             }
-            dir.qntd_de_membros--;
-            //redimensionando o tamanho do vetor, (ignorando o último elemento duplicado de nome no for acima):
-            dir.elemento = realloc(dir.elemento, sizeof(struct membro) * dir.qntd_de_membros);
         }
-
 //--------------------------------------------------------------------
-        //adiciona ao final de archive.
+        //adiciona ao archive.
         char buffer[1024];
         size_t lidos;
         //Aqui ele marca em "offset_atual" a posição do cursor, ou seja, aonde o arquivo vai começar a ser inserido.
@@ -142,6 +174,7 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
             entrada.tam_disco = x->tam_disco;  
         }
 
+
         strncpy(entrada.nome, nome, 100);
         entrada.nome[99] = '\0';
         entrada.uid = getuid();
@@ -149,11 +182,11 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
         entrada.ordem = dir.qntd_de_membros + 1;
         entrada.offset = offset_atual;
 
-        fclose(f);
-
         dir.qntd_de_membros++;
         dir.elemento = realloc(dir.elemento, sizeof(struct membro) * dir.qntd_de_membros);
+
         dir.elemento[dir.qntd_de_membros - 1] = entrada;
+        fclose(f);
     }
 
     //Escreve primeiramente os membros;
