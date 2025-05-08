@@ -101,39 +101,64 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
             int diferenca_tam = tam_arq_inserir - tam_arq_antigo;
 
             if (diferenca_tam != 0) {
-                 // Calculando o offset do fim do ultimo arquivo antigo.
-                long int max_offset = 0;
-                for (int j = 0; j < dir.qntd_de_membros; j++) {
-                    long int fim = dir.elemento[j].offset + dir.elemento[j].tam_disco;
-                    if (fim > max_offset)
-                        max_offset = fim;
+                // Primeiro, move os dados reais no arquivo (trás para frente)
+                if (diferenca_tam > 0) {
+                    for (int j = dir.qntd_de_membros - 1; j > guarda_i; j--) {
+                        struct membro *m = &dir.elemento[j];
+
+                        // Posição atual dos dados (antes do deslocamento)
+                        long int pos_atual = m->offset;
+                        long int novo_offset = pos_atual + diferenca_tam;
+
+                        // Aloca buffer e lê os dados na posição atual
+                        char *buffer = malloc(m->tam_disco);
+                        fseek(archive, pos_atual, SEEK_SET);
+                        int r = fread(buffer, 1, m->tam_disco, archive);
+
+                        // Escreve na nova posição (após o deslocamento)
+                        fseek(archive, novo_offset, SEEK_SET);
+                        int w = fwrite(buffer, 1, m->tam_disco, archive);
+
+                        free(buffer);
+
+                        // Atualiza o offset na estrutura
+                        m->offset = novo_offset;
+                        int x;
+                        printf("Aqui %d %d\n", r, w);
+                        scanf("%d", &x);
+                    }
+                }
+                else {
+                    for (int j = guarda_i+1; j < dir.qntd_de_membros; j++) {
+                        struct membro *m = &dir.elemento[j];
+
+                        // Posição atual dos dados (antes do deslocamento)
+                        long int pos_atual = m->offset;
+                        long int novo_offset = pos_atual + diferenca_tam;
+
+                        // Aloca buffer e lê os dados na posição atual
+                        char *buffer = malloc(m->tam_disco);
+                        fseek(archive, pos_atual, SEEK_SET);
+                        fread(buffer, 1, m->tam_disco, archive);
+
+                        // Escreve na nova posição (após o deslocamento)
+                        fseek(archive, novo_offset, SEEK_SET);
+                        fwrite(buffer, 1, m->tam_disco, archive);
+
+                        free(buffer);
+
+                        // Atualiza o offset na estrutura
+                        m->offset = novo_offset;
+                    }
                 }
 
-                //se for maior, eu terei que pegar o tamanho extra 
-                size_t tam_extra;
-                if (diferenca_tam > 0)
-                    tam_extra = diferenca_tam;
-                else 
-                    tam_extra = 0;
-
-                char *dados_restantes = malloc(max_offset - dir.elemento[guarda_i].offset + tam_extra);
-
-                fseek(archive, dir.elemento[guarda_i].offset + tam_arq_antigo, SEEK_SET);
-                fread(dados_restantes, 1, max_offset - (dir.elemento[guarda_i].offset + tam_arq_antigo), archive);
-
-                for (int j = guarda_i + 1; j < dir.qntd_de_membros; j++) {
-                    dir.elemento[j].offset += diferenca_tam;
-                }
-
+                //escrevendo o conteúdo do arquivo novo no offset do antigo:
                 fseek(f, 0, SEEK_SET);
                 fseek(archive, dir.elemento[guarda_i].offset, SEEK_SET);
                 char buffer[1024];
                 size_t lidos;
                 while ((lidos = fread(buffer, 1, sizeof(buffer), f)) > 0)
                     fwrite(buffer, 1, lidos, archive);
-
-                fwrite(dados_restantes, 1, max_offset - (dir.elemento[guarda_i].offset + tam_arq_antigo), archive);
-                free(dados_restantes);
 
                 dir.elemento[guarda_i].tam_disco = tam_arq_inserir;
                 dir.elemento[guarda_i].tam_original = tam_arq_inserir;
@@ -189,6 +214,7 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
         fclose(f);
     }
 
+    fseek(archive, 0, SEEK_END);
     //Escreve primeiramente os membros;
     fwrite(dir.elemento, sizeof(struct membro), dir.qntd_de_membros, archive);
     //Depois a qntd de membros;
