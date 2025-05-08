@@ -123,11 +123,9 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
 
                         // Atualiza o offset na estrutura
                         m->offset = novo_offset;
-                        int x;
-                        printf("Aqui %d %d\n", r, w);
-                        scanf("%d", &x);
                     }
                 }
+                //ERRO: estou escrevendo o diretório a partir de um offset errado ao final da função. CONSERTAR.
                 else {
                     for (int j = guarda_i+1; j < dir.qntd_de_membros; j++) {
                         struct membro *m = &dir.elemento[j];
@@ -135,6 +133,7 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
                         // Posição atual dos dados (antes do deslocamento)
                         long int pos_atual = m->offset;
                         long int novo_offset = pos_atual + diferenca_tam;
+                        printf("Novo offset %d\n", novo_offset);
 
                         // Aloca buffer e lê os dados na posição atual
                         char *buffer = malloc(m->tam_disco);
