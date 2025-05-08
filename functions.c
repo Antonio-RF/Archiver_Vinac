@@ -60,6 +60,7 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
             dir.qntd_de_membros = qntd_antiga;
             dir.elemento = malloc(sizeof(struct membro) * qntd_antiga);
             memcpy(dir.elemento, anteriores, sizeof(struct membro) * qntd_antiga);
+
             free(anteriores);
 
             // Remove o diretório antigo
@@ -70,7 +71,7 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
 
     for (int i=0 ; i< num_arquivos ; i++) {
         //Armazena na variável nome o nome do arquivo. Ex: nome = teste.txt
-        const char *nome = arquivos[i];
+        char *nome = arquivos[i];
         FILE *f = fopen(nome, "rb");
         if (!f) {
             perror("Erro ao abrir membro");
@@ -80,7 +81,40 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
         //preenche a estrutura "st" com os dados do arquivo da variável "nome".
         struct stat st;
         stat(nome, &st);
+//--------------------------------------------------------------------
+        //conferindo se o arquivo já existe no meu diretório:
+        int guarda_i = -1;
+        for (int i=0 ; i<dir.qntd_de_membros ; i++) {
+            //se o nome do arquivo for igual ao elemento i do diretório antigo:
+            if (strcmp(dir.elemento[i].nome, nome) == 0) {
+                guarda_i = i;
+                break;
+            }
+        }
 
+        //se existir, vou sobreescrever o arquivo com os que estão à frente dele:
+        if (guarda_i != -1) {
+            for (int j=guarda_i+1 ; j<dir.qntd_de_membros ; j++) {
+                char *temp = malloc(dir.elemento[j].tam_disco);
+
+                fseek(archive, dir.elemento[j].offset, SEEK_SET);
+                fread(temp, 1, dir.elemento[j].tam_disco, archive);
+
+                dir.elemento[j].offset -= dir.elemento[guarda_i].tam_disco;
+                fseek(archive, dir.elemento[j].offset, SEEK_SET);
+                fwrite(temp, 1, dir.elemento[j].tam_disco, archive);
+                free(temp);
+            }
+            //tirando ele do meu diretório:
+            for (int j=guarda_i; j<dir.qntd_de_membros-1; j++) {
+                dir.elemento[j] = dir.elemento[j+1];
+            }
+            dir.qntd_de_membros--;
+            //redimensionando o tamanho do vetor, (ignorando o último elemento duplicado de nome no for acima):
+            dir.elemento = realloc(dir.elemento, sizeof(struct membro) * dir.qntd_de_membros);
+        }
+
+//--------------------------------------------------------------------
         //adiciona ao final de archive.
         char buffer[1024];
         size_t lidos;
@@ -169,7 +203,7 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
             continue;
         }
 
-        //coloca em conteúdocomprimido e conteúdodescomprimido o que tem em f.
+        //coloca em conteúdo_comprimido e conteúdo_descomprimido o que tem em f.
         fread(conteudo, 1, tam, f);
         fclose(f);
 
@@ -271,8 +305,10 @@ void option_c(const char *nome_arquivo) {
     fread(membros, sizeof(struct membro), qntd_arquivos, archive);
 
     if (qntd_arquivos > 0) {
+        printf("ARQUIVOS DENTRO DO ARCHIVE.VC:\n");
+        printf("-----------------------------------------------------\n");
         for (int i=0 ; i<qntd_arquivos ; i++) {
-            printf("nome:%s, uid:%d, tamanho_original: %ld, tamanho_em_disco: %ld, data_modificação: %s, offset: %ld\n",
+            printf("[Nome:%s, UID:%d, Tamanho_Original: %ld, Tamanho_em_Disco: %ld, Data_Modificação: %s, Offset: %ld\n\n",
             membros[i].nome,
             membros[i].uid,
             membros[i].tam_original,
@@ -280,6 +316,7 @@ void option_c(const char *nome_arquivo) {
             ctime(&membros[i].data_modif),
             membros[i].offset);
         }
+        printf("-----------------------------------------------------\n");
     }
 
     free(membros);
@@ -506,7 +543,7 @@ void option_m(const char *nome_arquivo, char *arquivo_mover, char *arquivo_desti
 }
 //---------------------------------------------------------------------------------------------------------//
 //FUNÇÃO REMOVER:
-void option_r(const char *nome_arquivo, int num_arquivos, char *arquivo_remover) {
+void option_r(const char *nome_arquivo, char *arquivo_remover) {
     FILE *archive = fopen(nome_arquivo, "r+b");
     if (!archive) {
         perror("Erro ao abrir o arquivo.\n");
@@ -538,10 +575,9 @@ void option_r(const char *nome_arquivo, int num_arquivos, char *arquivo_remover)
         fclose(archive);
         return;
     }
-
     fread(membros, sizeof(struct membro), qntd_arquivos, archive);
 
-    // encontrando e salvando o indice do arquivo_destino:
+    // encontrando e salvando o indice do arquivo_remover:
     int guarda_ind = -1;
     for (int i = 0; i < qntd_arquivos; i++) {
         //essa função "strcmp" compara duas strings e retorna 0 quando são iguais.
@@ -553,7 +589,6 @@ void option_r(const char *nome_arquivo, int num_arquivos, char *arquivo_remover)
 
     //se não existir o arquivo, printa que não existe e vai para o próximo.
     if (guarda_ind == -1) {
-        printf("Arquivo %s não está no archive.vc\n", arquivo_remover);
         free(membros);
         fclose(archive);
         return;
@@ -601,6 +636,93 @@ void option_r(const char *nome_arquivo, int num_arquivos, char *arquivo_remover)
 
     free(membros);
     fclose(archive);
+}
+//---------------------------------------------------------------------------------------------------------//
+//FUNÇÃO PARA EXTRAIR ARQUIVO:
+void option_x(const char *nome_arquivo, char *arquivo_extrair, int controle) {
+    //Função main vai falar:
+    //Se controle == 0, extrai todos os arquivos porque não houve indicação de membros.
+    //Se controle == 1, extrai membro por membro, com um looping pegando cada arquivo na main.
+
+    FILE *archive = fopen(nome_arquivo, "r+b");
+    if (!archive) {
+        perror("Erro ao abrir o arquivo.\n");
+        return;
+    }
+    //---------------------------------------------------------//
+    //crtl+c crtl+v.
+
+    //descobrindo o tamanho do archive.vc:
+    fseek(archive, 0, SEEK_END);
+    long int tam_arquivo = ftell(archive);
+
+    //descobrindo a quantidade de membros em archive.vc:
+    int qntd_arquivos;
+    fseek(archive, -sizeof(int), SEEK_END);
+    fread(&qntd_arquivos, sizeof(int), 1, archive);
+    printf("qntd de membros: %d\n", qntd_arquivos);
+    
+
+    //descobindo aonde começa o diretório:
+    //calculando o tamanho total do diretório.
+    long int tam_dir = sizeof(struct membro) * qntd_arquivos + sizeof(int);
+    //aonde começa o diretório no archive:
+    long int inicio_dir = tam_arquivo - tam_dir;
+    
+    //lendo e guardando os membros do diretório:
+    fseek(archive, inicio_dir, SEEK_SET);
+    struct membro *membros = malloc(sizeof(struct membro) * qntd_arquivos);
+    if (!membros) {
+        fprintf(stderr, "Erro ao alocar memória para membros.\n");
+        fclose(archive);
+        return;
+    }
+    fread(membros, sizeof(struct membro), qntd_arquivos, archive);
+    //---------------------------------------------------------//
+
+
+    if (controle == 1) {
+        // encontrando e salvando o indice do arquivo_remover:
+        int guarda_i = -1;
+        for (int i = 0; i < qntd_arquivos; i++) {
+            //essa função "strcmp" compara duas strings e retorna 0 quando são iguais.
+            if (strcmp(membros[i].nome, arquivo_extrair) == 0) {
+                guarda_i = i;
+                break;
+            }
+        }
+        if (guarda_i == -1) {
+            printf("Elemento %s não encontrado para a extração!\n", arquivo_extrair);
+            return;
+        }
+
+        FILE *extraido = fopen(arquivo_extrair, "w+b");
+
+        char *buffer = malloc(membros[guarda_i].tam_disco);
+        //movendo o cursor e lendo os dados para o buffer:
+        fseek(archive, membros[guarda_i].offset, SEEK_SET);
+        fread(buffer, 1, membros[guarda_i].tam_disco, archive);
+        //escrevendo os dados no novo arquivo criado:
+        fwrite(buffer, 1, membros[guarda_i].tam_disco, extraido);
+        free(buffer);
+        fclose(extraido);
+    }
+    //controle == 0:
+    else {
+        for (int i=0 ; i < qntd_arquivos ; i++) {
+            FILE *extraido = fopen(membros[i].nome, "w+b");
+            char *buffer = malloc(membros[i].tam_disco);
+            //movendo o cursor e lendo os dados para o buffer:
+            fseek(archive, membros[i].offset, SEEK_SET);
+            fread(buffer, 1, membros[i].tam_disco, archive);
+            //escrevendo os dados no novo arquivo criado:
+            fwrite(buffer, 1, membros[i].tam_disco, extraido);
+            free(buffer);
+            fclose(extraido);
+        }
+    }
+    fclose(archive);
+    free(membros);
 }
 
 

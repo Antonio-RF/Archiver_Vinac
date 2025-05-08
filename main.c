@@ -9,16 +9,11 @@ int main(int argc, char **argv) {
     char prox_opcao;
     char *i_value = NULL;
     while ((prox_opcao = getopt(argc, argv, "i:m:x:r:c")) != -1) {
-        //for (int i = 0; i < argc; i++) {
-        //    printf("argv[%d] = %s\n", i, argv[i]);
-        //}
         switch(prox_opcao) {
             case 'i':
                 i_value = optarg;
                 if (i_value[0] == 'p') {
-                    printf("opcao -ip\n")   ;
-                    // nome_arquivo: archive.vc ; num_arquivos: tira "./vinac" "-ip" e "archive.vc" ;
-                    // arquivos: ponteiro de ponteiros a partir.
+                    printf("opcao -ip\n");
                     option_ip(argv[optind], argc - 3, &argv[optind+1], 0, NULL);
                     break;
                 }
@@ -36,11 +31,19 @@ int main(int argc, char **argv) {
                 break;
             case 'x':
                 printf("opcao -x\n");
+                //argc == 3 quer dizer que não indicou o arquivo, então extrai todos.
+                if (argc == 3)
+                    option_x(optarg, "NULL", 0);
+                else {
+                    for (int i= optind ; i < argc ; i++) {
+                        option_x(optarg, argv[i], 1);
+                    }
+                }
                 break;
             case 'r':
                 printf("opcao -r\n");
                 for (int i= optind ; i < argc ; i++)
-                    option_r(optarg, argc - 3, argv[i]);
+                    option_r(optarg, argv[i]);
                 break;
             case 'c':
                 printf("opcao -c\n");
