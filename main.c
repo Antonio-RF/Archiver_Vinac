@@ -14,7 +14,9 @@ int main(int argc, char **argv) {
                 i_value = optarg;
                 if (i_value[0] == 'p') {
                     printf("opcao -ip\n");
-                    option_ip(argv[optind], argc - 3, &argv[optind+1], 0, NULL);
+                    for (int i= optind ; i < argc-1 ; i++) {
+                        option_ip(argv[optind], argv[i+1], 0, NULL);
+                    }
                     break;
                 }
                 if (i_value[0] == 'c') {

@@ -10,12 +10,9 @@
 
 //---------------------------------------------------------------------------------------------------------//
 //FUNÇÃO INSERIR NÃO COMPRIMIDO:
-void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int controle, struct informacoes_comprimido *x) {
+void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct informacoes_comprimido *x) {
     printf("Arquivo archive: %s\n", nome_arquivo);
-    printf("Quantidade de arquivos a adicionar: %d\n", num_arquivos);
-    for (int i = 0; i < num_arquivos; i++) {
-        printf("-> Arquivo[%d] = %s\n", i, arquivos[i]);
-    }
+    printf("Arquivo a ser inserido: %s\n", arquivo);
 
     //"nome_arquivo" vai ser aonde você quer adicionar.
     //no caso, como a entrada vai ser ./vinac -ip archive.vc texto1.txt texto2.txt ...
@@ -69,108 +66,126 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
         }
     }
 
-    for (int i=0 ; i< num_arquivos ; i++) {
-        //Armazena na variável nome o nome do arquivo. Ex: nome = teste.txt
-        char *nome = arquivos[i];
-        FILE *f = fopen(nome, "rb");
-        if (!f) {
-            perror("Erro ao abrir membro");
-            continue;
-        }
+    //Armazena na variável nome o nome do arquivo. Ex: nome = teste.txt
+    char *nome = arquivo;
+    FILE *f = fopen(nome, "rb");
+    if (!f) {
+        perror("Erro ao abrir membro");
+        return;
+    }
 
-        //preenche a estrutura "st" com os dados do arquivo da variável "nome".
-        struct stat st;
-        stat(nome, &st);
+    //preenche a estrutura "st" com os dados do arquivo da variável "nome".
+    struct stat st;
+    stat(nome, &st);
 //--------------------------------------------------------------------
-        //conferindo se o arquivo já existe no meu diretório:
-        int guarda_i = -1;
-        for (int i=0 ; i<dir.qntd_de_membros ; i++) {
-            //se o nome do arquivo for igual ao elemento i do diretório antigo:
-            if (strcmp(dir.elemento[i].nome, nome) == 0) {
-                guarda_i = i;
-                break;
-            }
+    //conferindo se o arquivo já existe no meu diretório:
+    int guarda_i = -1;
+    for (int i=0 ; i<dir.qntd_de_membros ; i++) {
+        //se o nome do arquivo for igual ao elemento i do diretório antigo:
+        if (strcmp(dir.elemento[i].nome, nome) == 0) {
+            guarda_i = i;
+            break;
         }
+    }
+    printf("guarda_i = %d\n", guarda_i);
 
-        //se existir, vou pegar o tamanho do arquivo que já está no diretório e o tamanho desse que vou inserir.
-        //tirar essa diferença e, se for diferente de 0, colocar todos que estão à frente "diferença" para frente ou para trás.
-        if (guarda_i != -1) {
-            fseek(f, 0, SEEK_END);
-            int tam_arq_inserir = ftell(f);
-            int tam_arq_antigo = dir.elemento[guarda_i].tam_disco;
-            int diferenca_tam = tam_arq_inserir - tam_arq_antigo;
+    //guardadndo o offset de aonde eu vou adicionar meu diretório ao final
+    //a depender dos casos:
+    //-1 = vai para o final (caso em que o arquivo a inserir é maior).
+    //0 = vai para o final do último arquivo do archive.
+    // Primeiro, move os dados reais no arquivo (trás para frente)
+    int offset_final_diretorio = -1;
 
-            if (diferenca_tam != 0) {
-                // Primeiro, move os dados reais no arquivo (trás para frente)
-                if (diferenca_tam > 0) {
-                    for (int j = dir.qntd_de_membros - 1; j > guarda_i; j--) {
-                        struct membro *m = &dir.elemento[j];
+    //se existir, vou pegar o tamanho do arquivo que já está no diretório e o tamanho desse que vou inserir.
+    //tirar essa diferença e, se for diferente de 0, colocar todos que estão à frente "diferença" para frente ou para trás.
+    if (guarda_i != -1) {
+        fseek(f, 0, SEEK_END);
+        int tam_arq_inserir = ftell(f);
+        int tam_arq_antigo = dir.elemento[guarda_i].tam_disco;
+        int diferenca_tam = tam_arq_inserir - tam_arq_antigo;
+        printf("diferença de tam: %d\n", diferenca_tam);
 
-                        // Posição atual dos dados (antes do deslocamento)
-                        long int pos_atual = m->offset;
-                        long int novo_offset = pos_atual + diferenca_tam;
+        if (diferenca_tam != 0) {
+            if (diferenca_tam > 0) {
+                for (int j = dir.qntd_de_membros - 1; j > guarda_i; j--) {
+                    struct membro *m = &dir.elemento[j];
 
-                        // Aloca buffer e lê os dados na posição atual
-                        char *buffer = malloc(m->tam_disco);
-                        fseek(archive, pos_atual, SEEK_SET);
-                        int r = fread(buffer, 1, m->tam_disco, archive);
+                    // Posição atual dos dados (antes do deslocamento)
+                    long int pos_atual = m->offset;
+                    long int novo_offset = pos_atual + diferenca_tam;
 
-                        // Escreve na nova posição (após o deslocamento)
-                        fseek(archive, novo_offset, SEEK_SET);
-                        int w = fwrite(buffer, 1, m->tam_disco, archive);
+                    // Aloca buffer e lê os dados na posição atual
+                    char *buffer = malloc(m->tam_disco);
+                    fseek(archive, pos_atual, SEEK_SET);
+                    int r = fread(buffer, 1, m->tam_disco, archive);
 
-                        free(buffer);
+                    // Escreve na nova posição (após o deslocamento)
+                    fseek(archive, novo_offset, SEEK_SET);
+                    int w = fwrite(buffer, 1, m->tam_disco, archive);
 
-                        // Atualiza o offset na estrutura
-                        m->offset = novo_offset;
-                    }
+                    free(buffer);
+
+                    // Atualiza o offset na estrutura
+                    m->offset = novo_offset;
                 }
-                //ERRO: estou escrevendo o diretório a partir de um offset errado ao final da função. CONSERTAR.
-                else {
-                    for (int j = guarda_i+1; j < dir.qntd_de_membros; j++) {
-                        struct membro *m = &dir.elemento[j];
+            }
+            else {
+                //só para tratar o caso de ser o último membro:
+                struct membro *k = &dir.elemento[guarda_i];
+                offset_final_diretorio = k->offset+k->tam_disco+diferenca_tam;
+                printf("offset_final_diretório: %d\n", offset_final_diretorio);
+                for (int j = guarda_i+1; j < dir.qntd_de_membros; j++) {
+                    struct membro *m = &dir.elemento[j];
 
-                        // Posição atual dos dados (antes do deslocamento)
-                        long int pos_atual = m->offset;
-                        long int novo_offset = pos_atual + diferenca_tam;
-                        printf("Novo offset %d\n", novo_offset);
+                    // Posição atual dos dados (antes do deslocamento)
+                    long int pos_atual = m->offset;
+                    long int novo_offset = pos_atual + diferenca_tam;
 
-                        // Aloca buffer e lê os dados na posição atual
-                        char *buffer = malloc(m->tam_disco);
-                        fseek(archive, pos_atual, SEEK_SET);
-                        fread(buffer, 1, m->tam_disco, archive);
+                    // Aloca buffer e lê os dados na posição atual
+                    char *buffer = malloc(m->tam_disco);
+                    fseek(archive, pos_atual, SEEK_SET);
+                    fread(buffer, 1, m->tam_disco, archive);
 
-                        // Escreve na nova posição (após o deslocamento)
-                        fseek(archive, novo_offset, SEEK_SET);
-                        fwrite(buffer, 1, m->tam_disco, archive);
+                    // Escreve na nova posição (após o deslocamento)
+                    fseek(archive, novo_offset, SEEK_SET);
+                    fwrite(buffer, 1, m->tam_disco, archive);
 
-                        free(buffer);
+                    free(buffer);
 
-                        // Atualiza o offset na estrutura
-                        m->offset = novo_offset;
-                    }
+                    // Atualiza o offset na estrutura
+                    m->offset = novo_offset;
+                    offset_final_diretorio = m->offset+m->tam_disco;
                 }
-
-                //escrevendo o conteúdo do arquivo novo no offset do antigo:
-                fseek(f, 0, SEEK_SET);
-                fseek(archive, dir.elemento[guarda_i].offset, SEEK_SET);
-                char buffer[1024];
-                size_t lidos;
-                while ((lidos = fread(buffer, 1, sizeof(buffer), f)) > 0)
-                    fwrite(buffer, 1, lidos, archive);
-
-                dir.elemento[guarda_i].tam_disco = tam_arq_inserir;
-                dir.elemento[guarda_i].tam_original = tam_arq_inserir;
-
-                fclose(f);
-                continue;
             }
-            //arquivo igual, só continua.
-            if (diferenca_tam == 0) {
-                continue;
-            }
+
+            //escrevendo o conteúdo do arquivo novo no offset do antigo:
+            fseek(f, 0, SEEK_SET);
+            fseek(archive, dir.elemento[guarda_i].offset, SEEK_SET);
+            char buffer[1024];
+            size_t lidos;
+            while ((lidos = fread(buffer, 1, sizeof(buffer), f)) > 0)
+                fwrite(buffer, 1, lidos, archive);
+
+            dir.elemento[guarda_i].tam_disco = tam_arq_inserir;
+            dir.elemento[guarda_i].tam_original = tam_arq_inserir;
+
+            fclose(f);
         }
+        if (diferenca_tam == 0) {
+            //escrevendo o conteúdo do arquivo novo no offset do antigo:
+            fseek(f, 0, SEEK_SET);
+            fseek(archive, dir.elemento[guarda_i].offset, SEEK_SET);
+            char buffer[1024];
+            size_t lidos;
+            while ((lidos = fread(buffer, 1, sizeof(buffer), f)) > 0)
+                fwrite(buffer, 1, lidos, archive);
+
+            fclose(f);
+        }
+    }
 //--------------------------------------------------------------------
+    //aqui é se não tem membro igual (caso normal):
+    else {
         //adiciona ao archive.
         char buffer[1024];
         size_t lidos;
@@ -213,7 +228,12 @@ void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int 
         fclose(f);
     }
 
-    fseek(archive, 0, SEEK_END);
+    //importantíssimo:
+    if (offset_final_diretorio == -1)
+        fseek(archive, 0, SEEK_END);
+    else 
+        fseek(archive, offset_final_diretorio, SEEK_SET);
+
     //Escreve primeiramente os membros;
     fwrite(dir.elemento, sizeof(struct membro), dir.qntd_de_membros, archive);
     //Depois a qntd de membros;
@@ -311,7 +331,7 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
     // Remove os arquivos temporários
     for (int i = 0; i < num_arquivos; i++) {
         if (arquivos_a_comprimir[i]) {
-            option_ip(nome_arquivo, 1, &arquivos_a_comprimir[i], 1, &info[i]);
+            option_ip(nome_arquivo, arquivos_a_comprimir[i], 1, &info[i]);
             //se não for, eu estaria removendo o arquivo original.
             if (eh_temporario[i])
                 remove(arquivos_a_comprimir[i]);

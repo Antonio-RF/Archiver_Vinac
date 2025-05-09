@@ -23,7 +23,7 @@ struct informacoes_comprimido {
     long int tam_disco;
 };
 
-void option_ip(const char *nome_arquivo, int num_arquivos, char **arquivos, int controle, struct informacoes_comprimido *x);
+void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct informacoes_comprimido *x);
 
 void option_c(const char *nome_arquivo);
 
