@@ -16,6 +16,7 @@ int main(int argc, char **argv) {
                     for (int i= optind ; i < argc-1 ; i++) {
                         option_ip(argv[optind], argv[i+1], 0, NULL);
                     }
+                    printf("Arquivos inseridos com sucesso em %s\n", argv[optind]);
                     break;
                 }
                 if (i_value[0] == 'c') {

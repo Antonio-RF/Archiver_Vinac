@@ -1,0 +1,56 @@
+----------------------------------------------------------------------------------
+Autoria:
+    Antonio da Ressurreição Filho - GRR20245202.
+
+----------------------------------------------------------------------------------
+Lista dos diretórios e arquivos contidos:
+    Diretórios: 
+        -Archiver_Vinac: Diretório que contêm todos os meus arquivos.
+    Arquivos: 
+        main.c: Arquivo principal, o qual recebe o comando vindo do terminal e o executa, junto com todas as funções criadas nos outros arquivos.
+        --
+        functions.c: Arquivo que contêm as principais funcões do meu código. Eu separei o meu programa para fazer cada flag como uma função, e essas funções das flags estão contidas nesse arquivo (-ip, -ic, -c, -r, -x e -m).
+        --
+        functions.h: Arquivo header de functions.c.
+        --
+        lz.c: Biblioteca de compressão dada pelos professores.
+        --
+        lz.h: Header da biblioteca de compressão dada pelos professores.
+        --
+        secundary.c: Funções secundárias para complementar as funções contidas no arquivo "functions.c", a fim de evitar que essas funções fiquem com diversas linhas repetidas e, assim, deixando o código mais difícil de se entender.
+        --
+        secundary.h: Header de secundary.c.
+        --
+        Makefile: Arquivo Makefile pedido pelos professores, com a exata simplificação que pediram nas especificações do trabalho.
+        --
+        teste.txt: Arquivo teste 1.
+        --
+        teste2.txt: Arquivo teste 2.
+        --
+        teste3.txt: Arquivo teste 3.
+        --
+        teste4.txt: Arquivo teste 4.
+        --
+        grande.txt: Arquivo teste 5. Esse arquivo foi feito para comprovar a compressão sendo feita adequadamente,
+        --
+        LEIAME.txt: Esse arquivo que vos escrevo.
+
+----------------------------------------------------------------------------------
+Algoritmos e Estruturas de Dados utilizados:
+    Eu utilizei um ponteiro de ponteiros, ou seja, um vetor de structs para fazer meu diretório. Esse ponteiro de ponteiros guarda as informações para conseguir manipular qualquer uma das flags pedidas nas especificações. 
+    A forma como eu utilizei essa estrutura de dados depende de cada flag, mas em qualquer situação de inclusão ou exclusão de algum arquivo, eu copiava toda essa estrutura dentro da minha função, fazia a modificação pedida e depois escrevia devolta esse ponteiro de ponteiros modificado com as mudanças pedidas no archive.vc.
+    O meu código ficou muito em volta da seguinte estrutura: 
+    - o usuário digita a flag desejada, 
+    - meu arquivo main lê o pedido do usuário e faz com que a função da respectiva flag seja chamada, 
+    - essa função manipula o ponteiro de ponteiros (diretório) para achar, remover, incluir, mover ou extrair o arquivo,
+    - por fim, escreve-se a modificação no archive.vc e fecha-se todos os arquivos abertos.
+    
+    O principal motivo que me levou a optar pela versão entregue do meu código foi a tranquilidade que eu tinha de manipulação de ponteiro de ponteiros e de uma função main que chama outras funções em um arquivo diferente, devido à matéria de programação 1, em que se foi utilizada diversas vezes esse estilo de código junto com os professores da matéria.
+
+    As maiores dificuldades encontradas no código na minha opinião foram em relação ao próprio conteúdo que os professores esperam que aprendemos, que seria a manipulação de arquivos através das funções fseek(), ftruncate(), fwrite(), fread() e etc. A manipulação desses arquivos pela primeira vez não é algo fácil, principalmente considerando funções em que você deve mover certa parte do código, sobreescrever outra parte e fazer diversas outras funcionalidades para deixar seu arquivo .vc o mais otimizado possível.
+
+----------------------------------------------------------------------------------
+Bugs conhecidos:
+    Acredito que os bugs conhecidos que eu passei ao fazer o trabalho foram: não estar conseguindo acessar o diretório porque eu estava sobreescrevendo com outros arquivos, mover arquivos de forma errônea e não conseguir acessar eles pelos offsets antigos, comprimir um certo arquivo e adicionar ele junto ao arquivo descomprimido ou até mesmo substituir ele pelo comprimido mas fazendo a contagem dos offsets dos outros arquivos de forma errônea ou sobreescrevendo eles com o novo arquivo, entre outros.
+
+----------------------------------------------------------------------------------

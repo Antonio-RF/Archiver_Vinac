@@ -12,9 +12,6 @@
 //---------------------------------------------------------------------------------------------------------//
 //FUNÇÃO INSERIR NÃO COMPRIMIDO:
 void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct informacoes_comprimido *x) {
-    printf("Arquivo archive: %s\n", nome_arquivo);
-    printf("Arquivo a ser inserido: %s\n", arquivo);
-
     //"nome_arquivo" vai ser aonde você quer adicionar.
     //no caso, como a entrada vai ser ./vinac -ip archive.vc texto1.txt texto2.txt ...
     // o "nome_arquivo" será "archive.vc"
@@ -97,7 +94,6 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
         int tam_arq_inserir = ftell(f);
         int tam_arq_antigo = dir.elemento[guarda_i].tam_disco;
         int diferenca_tam = tam_arq_inserir - tam_arq_antigo;
-        printf("diferença de tam: %d\n", diferenca_tam);
 
         if (diferenca_tam != 0) {
             if (diferenca_tam > 0) {
@@ -125,7 +121,6 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
                 //só para tratar o caso de ser o último membro:
                 struct membro *k = &dir.elemento[guarda_i];
                 offset_final_diretorio = k->offset+k->tam_disco+diferenca_tam;
-                printf("offset_final_diretório: %d\n", offset_final_diretorio);
                 for (int j = guarda_i+1; j < dir.qntd_de_membros; j++) {
                     struct membro *m = &dir.elemento[j];
 
@@ -244,7 +239,6 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
     }
 
     fclose(archive);
-    printf("Arquivos inseridos com sucesso em %s\n", nome_arquivo);
 }
 
 //---------------------------------------------------------------------------------------------------------//
@@ -418,7 +412,6 @@ void option_m(const char *nome_arquivo, char *arquivo_mover, char *arquivo_desti
         return;
     }
 
-    printf("Procurando pelo arquivo: %s\n", arquivo_mover);
 
     //descobrindo o tamanho do archive.vc:
     fseek(archive, 0, SEEK_END);
@@ -428,7 +421,6 @@ void option_m(const char *nome_arquivo, char *arquivo_mover, char *arquivo_desti
     int qntd_arquivos;
     fseek(archive, -sizeof(int), SEEK_END);
     fread(&qntd_arquivos, sizeof(int), 1, archive);
-    printf("qntd de membros: %d\n", qntd_arquivos);
     
 
     //descobindo aonde começa o diretório:
@@ -645,7 +637,6 @@ void option_r(const char *nome_arquivo, char *arquivo_remover) {
     int qntd_arquivos;
     fseek(archive, -sizeof(int), SEEK_END);
     fread(&qntd_arquivos, sizeof(int), 1, archive);
-    printf("qntd de membros: %d\n", qntd_arquivos);
     
 
     //descobindo aonde começa o diretório:
@@ -792,6 +783,7 @@ void option_x(char *nome_arquivo, char *arquivo_extrair, int controle) {
         }
     }
     free(membros);
+    printf("Arquivo %s extraído com sucesso.\n", arquivo_extrair);
 }
 
 

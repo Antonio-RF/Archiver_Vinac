@@ -8,7 +8,7 @@ OBJ = $(SRC:.c=.o)
 
 # Compilador e flags
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99
+CFLAGS = -Wall -Wextra -std=c99 -g
 
 # Regra principal
 all: $(BINDIR)/$(EXEC)
