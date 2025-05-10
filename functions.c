@@ -7,6 +7,7 @@
 #include <time.h>
 #include "functions.h"
 #include "lz.h"
+#include "secundary.h"
 
 //---------------------------------------------------------------------------------------------------------//
 //FUNÇÃO INSERIR NÃO COMPRIMIDO:
@@ -167,7 +168,7 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
                 fwrite(buffer, 1, lidos, archive);
 
             dir.elemento[guarda_i].tam_disco = tam_arq_inserir;
-            dir.elemento[guarda_i].tam_original = tam_arq_inserir;
+            //dir.elemento[guarda_i].tam_original = tam_arq_inserir;
 
             fclose(f);
         }
@@ -239,6 +240,19 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
     //Depois a qntd de membros;
     fwrite(&dir.qntd_de_membros, sizeof(int), 1, archive);
 
+    // apagando tudo que há depois do meu diretório (se há alguma coisa)
+    long pos = ftell(archive);
+    if (pos == -1L) {
+        perror("ftell");
+        // Trate o erro, por exemplo, com exit ou return
+    } else {
+        // Trunca o arquivo exatamente onde o cursor está agora
+        if (ftruncate(fileno(archive), pos) == -1) {
+            perror("ftruncate");
+            // Trate o erro se necessário
+        }
+    }
+
     fclose(archive);
     printf("Arquivos inseridos com sucesso em %s\n", nome_arquivo);
 }
@@ -281,7 +295,6 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
             continue;
         }
 
-        //coloca em conteúdo_comprimido e conteúdo_descomprimido o que tem em f.
         fread(conteudo, 1, tam, f);
         fclose(f);
 
@@ -308,17 +321,21 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
         //aqui eu confiro se o arquivo comprimido é maior que o original ou não.
         //se for maior, eu insiro o arquivo original, senão eu insiro o arquivo comprimido.
         if (tam_comprimido < tam) {
-            char *saida = malloc(strlen(nome) + 5); //+ ".lz" e "\0"
-            sprintf(saida, "%s.lz", nome);
+            FILE *out1 = fopen(nome, "wb");
+            if (!out1) {
+                perror("Erro ao sobrescrever o arquivo original com o conteúdo comprimido");
+                free(comprimido);
+                arquivos_a_comprimir[i] = NULL;
+                eh_temporario[i] = 0;
+                continue;
+            }
 
-            //salvando o conteudo comprimido no arquivo out1:
-            FILE *out1 = fopen(saida, "wb");
             fwrite(comprimido, 1, tam_comprimido, out1);
             fclose(out1);
             free(comprimido);
 
-            arquivos_a_comprimir[i] = saida;
-            eh_temporario[i] = 1;
+            arquivos_a_comprimir[i] = strdup(nome);
+            eh_temporario[i] = 0;  // Agora o arquivo não é temporário
         }
         else {
             info[i].tam_disco = info[i].tam_original;
@@ -384,17 +401,27 @@ void option_c(const char *nome_arquivo) {
 
     if (qntd_arquivos > 0) {
         printf("ARQUIVOS DENTRO DO ARCHIVE.VC:\n");
-        printf("-----------------------------------------------------\n");
-        for (int i=0 ; i<qntd_arquivos ; i++) {
-            printf("[Nome:%s, UID:%d, Tamanho_Original: %ld, Tamanho_em_Disco: %ld, Data_Modificação: %s, Offset: %ld\n\n",
-            membros[i].nome,
-            membros[i].uid,
-            membros[i].tam_original,
-            membros[i].tam_disco,
-            ctime(&membros[i].data_modif),
-            membros[i].offset);
+        printf("--------------------------------------------------------------------------------------------------------------\n");
+        printf("| %-20s | %-5s | %-17s | %-17s | %-25s | %-6s |\n", 
+            "Nome", "UID", "Tamanho_Original", "Tamanho_em_Disco", "Data_Modificação", "Offset");
+        printf("--------------------------------------------------------------------------------------------------------------\n");
+
+        for (int i = 0; i < qntd_arquivos; i++) {
+            char data_formatada[26];  // ctime sempre retorna 26 caracteres incluindo '\n'
+            strncpy(data_formatada, ctime(&membros[i].data_modif), 25);
+            data_formatada[24] = '\0'; // remove o '\n' ao final
+
+            printf("| %-20s | %-5d | %-17ld | %-17ld | %-25s | %-6ld |\n",
+                membros[i].nome,
+                membros[i].uid,
+                membros[i].tam_original,
+                membros[i].tam_disco,
+                data_formatada,
+                membros[i].offset);
         }
-        printf("-----------------------------------------------------\n");
+
+        printf("--------------------------------------------------------------------------------------------------------------\n");
+
     }
 
     free(membros);
@@ -717,7 +744,7 @@ void option_r(const char *nome_arquivo, char *arquivo_remover) {
 }
 //---------------------------------------------------------------------------------------------------------//
 //FUNÇÃO PARA EXTRAIR ARQUIVO:
-void option_x(const char *nome_arquivo, char *arquivo_extrair, int controle) {
+void option_x(char *nome_arquivo, char *arquivo_extrair, int controle) {
     //Função main vai falar:
     //Se controle == 0, extrai todos os arquivos porque não houve indicação de membros.
     //Se controle == 1, extrai membro por membro, com um looping pegando cada arquivo na main.
@@ -758,7 +785,7 @@ void option_x(const char *nome_arquivo, char *arquivo_extrair, int controle) {
     fread(membros, sizeof(struct membro), qntd_arquivos, archive);
     //---------------------------------------------------------//
 
-
+    fclose(archive);
     if (controle == 1) {
         // encontrando e salvando o indice do arquivo_remover:
         int guarda_i = -1;
@@ -774,32 +801,15 @@ void option_x(const char *nome_arquivo, char *arquivo_extrair, int controle) {
             return;
         }
 
-        FILE *extraido = fopen(arquivo_extrair, "w+b");
-
-        char *buffer = malloc(membros[guarda_i].tam_disco);
-        //movendo o cursor e lendo os dados para o buffer:
-        fseek(archive, membros[guarda_i].offset, SEEK_SET);
-        fread(buffer, 1, membros[guarda_i].tam_disco, archive);
-        //escrevendo os dados no novo arquivo criado:
-        fwrite(buffer, 1, membros[guarda_i].tam_disco, extraido);
-        free(buffer);
-        fclose(extraido);
+        //Se o arquivo estiver comprimido, descomprimir:
+        extrair_membro(nome_arquivo, membros[guarda_i]);
     }
     //controle == 0:
     else {
         for (int i=0 ; i < qntd_arquivos ; i++) {
-            FILE *extraido = fopen(membros[i].nome, "w+b");
-            char *buffer = malloc(membros[i].tam_disco);
-            //movendo o cursor e lendo os dados para o buffer:
-            fseek(archive, membros[i].offset, SEEK_SET);
-            fread(buffer, 1, membros[i].tam_disco, archive);
-            //escrevendo os dados no novo arquivo criado:
-            fwrite(buffer, 1, membros[i].tam_disco, extraido);
-            free(buffer);
-            fclose(extraido);
+            extrair_membro(nome_arquivo, membros[i]);
         }
     }
-    fclose(archive);
     free(membros);
 }
 

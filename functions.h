@@ -33,6 +33,6 @@ void option_r(const char *nome_arquivo, char *arquivo_remover);
 
 void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos);
 
-void option_x(const char *nome_arquivo, char *arquivo_extrair, int controle);
+void option_x(char *nome_arquivo, char *arquivo_extrair, int controle);
 
 #endif
