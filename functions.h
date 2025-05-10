@@ -2,6 +2,8 @@
 #define __FUNCTIONS__
 #include <unistd.h>
 #include <time.h>
+#include <sys/types.h>
+
 
 struct membro {
     char nome[100];

@@ -2,10 +2,24 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <string.h>
 #include <pwd.h>
 #include "functions.h"
 #include "lz.h"
 #include "secundary.h"
+
+
+int confere_existe(struct diretorio dir, char *nome) {
+    int guarda_i = -1;
+    for (int i=0 ; i<dir.qntd_de_membros ; i++) {
+        //se o nome do arquivo for igual ao elemento i do diretório antigo:
+        if (strcmp(dir.elemento[i].nome, nome) == 0) {
+            guarda_i = i;
+            break;
+        }
+    }
+    return guarda_i;
+}
 
 void extrair_membro(char *nome_arquivo, struct membro m) {
     FILE *archive = fopen(nome_arquivo, "rb");

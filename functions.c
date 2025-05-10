@@ -1,10 +1,10 @@
-#include <stdlib.h>
+#define _GNU_SOURCE
+
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
+#include <string.h>    
+#include <unistd.h>  
 #include <sys/stat.h>
-#include <unistd.h>
-#include <pwd.h>
-#include <time.h>
 #include "functions.h"
 #include "lz.h"
 #include "secundary.h"
@@ -37,7 +37,8 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
     fseek(archive, 0, SEEK_END);
     long int tam_arquivo = ftell(archive);
 
-    if (tam_arquivo >= sizeof(int)) {
+    //conferindo se há algo no archive.vc:
+    if ((unsigned long)tam_arquivo >= sizeof(int)) {
         int qntd_antiga;
         // Lê quantidade de membros antigos
         fseek(archive, -sizeof(int), SEEK_END);
@@ -80,19 +81,11 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
     stat(nome, &st);
 //--------------------------------------------------------------------
     //conferindo se o arquivo já existe no meu diretório:
-    int guarda_i = -1;
-    for (int i=0 ; i<dir.qntd_de_membros ; i++) {
-        //se o nome do arquivo for igual ao elemento i do diretório antigo:
-        if (strcmp(dir.elemento[i].nome, nome) == 0) {
-            guarda_i = i;
-            break;
-        }
-    }
-    printf("guarda_i = %d\n", guarda_i);
+    int guarda_i = confere_existe(dir, nome);
 
-    //guardadndo o offset de aonde eu vou adicionar meu diretório ao final
+    //guardando o offset de aonde eu vou adicionar meu diretório ao final
     //a depender dos casos:
-    //-1 = vai para o final (caso em que o arquivo a inserir é maior).
+    //-1 = vai para o final (caso em que o arquivo a inserir é maior ou inserção normal).
     //0 = vai para o final do último arquivo do archive.
     // Primeiro, move os dados reais no arquivo (trás para frente)
     int offset_final_diretorio = -1;
@@ -118,11 +111,9 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
                     // Aloca buffer e lê os dados na posição atual
                     char *buffer = malloc(m->tam_disco);
                     fseek(archive, pos_atual, SEEK_SET);
-                    int r = fread(buffer, 1, m->tam_disco, archive);
 
                     // Escreve na nova posição (após o deslocamento)
                     fseek(archive, novo_offset, SEEK_SET);
-                    int w = fwrite(buffer, 1, m->tam_disco, archive);
 
                     free(buffer);
 
@@ -168,7 +159,6 @@ void option_ip(const char *nome_arquivo, char *arquivo, int controle, struct inf
                 fwrite(buffer, 1, lidos, archive);
 
             dir.elemento[guarda_i].tam_disco = tam_arq_inserir;
-            //dir.elemento[guarda_i].tam_original = tam_arq_inserir;
 
             fclose(f);
         }
@@ -263,12 +253,10 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
     //criando um vetor para comprimir os arquivos:
     char **arquivos_a_comprimir = malloc(num_arquivos * sizeof(char *));
     struct informacoes_comprimido *info = malloc(num_arquivos *sizeof(struct informacoes_comprimido));
-    int *eh_temporario = malloc(num_arquivos * sizeof(int));
-    if (!arquivos_a_comprimir || !info || !eh_temporario) {
+    if (!arquivos_a_comprimir || !info) {
         perror("Erro ao alocar memória");
         free(arquivos_a_comprimir);
         free(info);
-        free(eh_temporario);
         return;
     }
 
@@ -308,7 +296,6 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
             printf("Erro ao comprimir %s\n", arquivos[i]);
             free(comprimido);
             arquivos_a_comprimir[i] = NULL;
-            eh_temporario[i] = 0;
             continue;
         }
 
@@ -326,7 +313,6 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
                 perror("Erro ao sobrescrever o arquivo original com o conteúdo comprimido");
                 free(comprimido);
                 arquivos_a_comprimir[i] = NULL;
-                eh_temporario[i] = 0;
                 continue;
             }
 
@@ -335,13 +321,11 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
             free(comprimido);
 
             arquivos_a_comprimir[i] = strdup(nome);
-            eh_temporario[i] = 0;  // Agora o arquivo não é temporário
         }
         else {
             info[i].tam_disco = info[i].tam_original;
             free(comprimido);
             arquivos_a_comprimir[i] = strdup(nome);
-            eh_temporario[i] = 0;
         }
     }
 
@@ -349,9 +333,6 @@ void option_ic(const char *nome_arquivo, int num_arquivos, char **arquivos) {
     for (int i = 0; i < num_arquivos; i++) {
         if (arquivos_a_comprimir[i]) {
             option_ip(nome_arquivo, arquivos_a_comprimir[i], 1, &info[i]);
-            //se não for, eu estaria removendo o arquivo original.
-            if (eh_temporario[i])
-                remove(arquivos_a_comprimir[i]);
             free(arquivos_a_comprimir[i]);
         }
     }
@@ -371,7 +352,7 @@ void option_c(const char *nome_arquivo) {
     //verificando se há algo no archive:
     fseek(archive, 0, SEEK_END);
     long int tam_arquivo = ftell(archive);
-    if (tam_arquivo < sizeof(int)) {
+    if (tam_arquivo < (long)sizeof(int)) {
         printf("Sem arquivos no archive.vc!\n");
         return;
     }
@@ -655,6 +636,7 @@ void option_r(const char *nome_arquivo, char *arquivo_remover) {
         return;
     }
 
+    //---------------------------------------------------------//
     //descobrindo o tamanho do archive.vc:
     fseek(archive, 0, SEEK_END);
     long int tam_arquivo = ftell(archive);
@@ -669,7 +651,6 @@ void option_r(const char *nome_arquivo, char *arquivo_remover) {
     //descobindo aonde começa o diretório:
     //calculando o tamanho total do diretório.
     long int tam_dir = sizeof(struct membro) * qntd_arquivos + sizeof(int);
-    //aonde começa o diretório no archive:
     long int inicio_dir = tam_arquivo - tam_dir;
     
     //lendo e guardando os membros do diretório:
@@ -681,6 +662,8 @@ void option_r(const char *nome_arquivo, char *arquivo_remover) {
         return;
     }
     fread(membros, sizeof(struct membro), qntd_arquivos, archive);
+    //---------------------------------------------------------//
+
 
     // encontrando e salvando o indice do arquivo_remover:
     int guarda_ind = -1;
@@ -743,7 +726,7 @@ void option_r(const char *nome_arquivo, char *arquivo_remover) {
     fclose(archive);
 }
 //---------------------------------------------------------------------------------------------------------//
-//FUNÇÃO PARA EXTRAIR ARQUIVO:
+//FUNÇÃO EXTRAIR ARQUIVO:
 void option_x(char *nome_arquivo, char *arquivo_extrair, int controle) {
     //Função main vai falar:
     //Se controle == 0, extrai todos os arquivos porque não houve indicação de membros.
@@ -754,9 +737,8 @@ void option_x(char *nome_arquivo, char *arquivo_extrair, int controle) {
         perror("Erro ao abrir o arquivo.\n");
         return;
     }
-    //---------------------------------------------------------//
-    //crtl+c crtl+v.
 
+    //---------------------------------------------------------//
     //descobrindo o tamanho do archive.vc:
     fseek(archive, 0, SEEK_END);
     long int tam_arquivo = ftell(archive);
@@ -764,9 +746,7 @@ void option_x(char *nome_arquivo, char *arquivo_extrair, int controle) {
     //descobrindo a quantidade de membros em archive.vc:
     int qntd_arquivos;
     fseek(archive, -sizeof(int), SEEK_END);
-    fread(&qntd_arquivos, sizeof(int), 1, archive);
-    printf("qntd de membros: %d\n", qntd_arquivos);
-    
+    fread(&qntd_arquivos, sizeof(int), 1, archive);    
 
     //descobindo aonde começa o diretório:
     //calculando o tamanho total do diretório.
@@ -784,8 +764,9 @@ void option_x(char *nome_arquivo, char *arquivo_extrair, int controle) {
     }
     fread(membros, sizeof(struct membro), qntd_arquivos, archive);
     //---------------------------------------------------------//
-
     fclose(archive);
+
+
     if (controle == 1) {
         // encontrando e salvando o indice do arquivo_remover:
         int guarda_i = -1;
